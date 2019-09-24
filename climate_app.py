@@ -37,7 +37,7 @@ def home():
         f"<br/>"
         f"Available Routes:<br/>"
         f"<br/>"
-        f"- Dates and temperature observations from the past year<br/>"
+        f"- Dates and precipitation observations from the past year<br/>"
         f"/api/v1.0/precipitation<br/>"
         f"<br/>"
         f"- List of stations<br/>"
@@ -46,10 +46,12 @@ def home():
         f"- Temperature Observations from the past year<br/>"
         f"/api/v1.0/tobs<br/>"
         f"<br/>"
-        f"- Minimum temperature, the average temperature, and the max temperature for a given start day<br/>"
+        f"- Minimum, average, and max temperature for a given start day<br/>"
+        f"- Provide a date in the format yyyy-mm-dd after the slash<br/>"
         f"/api/v1.0/<start><br/>"
         f"<br/>"
-        f"- Minimum temperature, the average temperature, and the max temperature for a given start-end range<br/>"
+        f"- Minimum, average, and max temperature for a given start-end range<br/>"
+        f"- Provide start and end dates in the format yyyy-mm-dd after each slash <br/>"
         f"/api/v1.0/<start>/<end><br/>"
     )
 
@@ -68,10 +70,10 @@ def prcp():
     # Create a list of dicts with `date` and `prcp` as the keys and values
     prcp_totals = []
     for result in precipitation:
-        row = {}
-        row["date"] = result[0]
-        row["prcp"] = result[1]
-        prcp_totals.append(row)
+        row_dict = {}
+        row_dict["date"] = result[0]
+        row_dict["prcp"] = result[1]
+        prcp_totals.append(row_dict)
 
     return jsonify(prcp_totals)
 
@@ -101,21 +103,49 @@ def tobs():
 
 @app.route("/api/v1.0/<start>")
 def start_temp(start):
-    # get the min/avg/max
-    temp_data = session.query(func.min(Measurement.tobs), func.avg(Measurement.tobs), func.max(Measurement.tobs)).filter(Measurement.date >= start).all()
+    # Design a query to get the min/avg/max from a given start date
+    temp_data = session.query(func.min(Measurement.tobs).\
+                            label("TMIN"), func.avg(Measurement.tobs).\
+                            label("TAVG"), func.max(Measurement.tobs).\
+                            label("TMAX")).\
+                            filter(Measurement.date >= start).all()
+
+    # Create a dictionary from the row data and append to a list of start temp
+    start_temp = []
     
-    return jsonify(temp_data)
+    for result in temp_data:
+        row_dict = {}
+        row_dict["minimum temperature"] = result.TMIN
+        row_dict["average temperature"] = result.TAVG
+        row_dict["maximum temperature"] = result.TMAX
+        start_temp.append(row_dict)
+
+    return jsonify(start_temp)
     
+        
 @app.route("/api/v1.0/<start>/<end>")
-# def range_temp(start, end):
-#  # get the min/avg/max
-#     temp_data = session.query(func.min(Measurement.tobs), func.avg(Measurement.tobs), func.max(Measurement.tobs)).filter(and_(Measurement.date >= start, Measurement.date <= end)).all()
+
+def calc_temps(start, end):
+    # Design a query to get the min/avg/max from a given start and end date
+    temp_during_trip = session.query(func.min(Measurement.tobs).\
+                            label("TMIN"), func.avg(Measurement.tobs).\
+                            label("TAVG"), func.max(Measurement.tobs).\
+                            label("TMAX")).\
+                            filter(Measurement.date >= start).\
+                            filter(Measurement.date <= end).all()
     
-#     return jsonify(temp_data)
-def calc_temps(start_date, end_date):
-    
-    return session.query(func.min(Measurement.tobs), func.avg(Measurement.tobs), func.max(Measurement.tobs)).\
-        filter(Measurement.date >= start_date).filter(Measurement.date <= end_date).all()
+    # Create a dictionary from the row data and append to a list of trip duration
+    trip_duration_info = []
+     
+    for result in temp_during_trip:
+        row_dict = {}
+        row_dict["minimum temperature"] = result.TMIN
+        row_dict["average temperature"] = result.TAVG
+        row_dict["maximum temperature"] = result.TMAX
+        trip_duration_info.append(row_dict)
+
+    return jsonify(trip_duration_info)
+
 
 # 4. Define main behavior
 if __name__ == "__main__":
